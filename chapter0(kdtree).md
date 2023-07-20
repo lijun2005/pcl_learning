@@ -42,19 +42,10 @@ int main(int argc, char **argv) {
   viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_FONT_SIZE , 2, "demo_cloud");
   while( !viewer->wasStopped())
   {
-    viewer->spinOnce();
+    viewer->spinOnce(); //每次循环调用内部的重绘函数，按 q 退出
   }
 
   return 0;
 }
-
-
-
-
-
-
-
-
-
 ```
 
