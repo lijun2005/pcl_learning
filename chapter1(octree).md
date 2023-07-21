@@ -108,6 +108,140 @@ KdTree（K维树）的应用场景：
 ## 八叉树的空间划分和三种搜索方法
 ### 代码实现
 ```c++
+#include <iostream>
+#include <vector>
+#include <ctime>
 
+#include <pcl/point_cloud.h>
+#include <pcl/octree/octree_search.h>
+#include <pcl/visualization/cloud_viewer.h>
+#include <pcl/io/io.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/visualization/pcl_visualizer.h>
+
+
+int main(int argc , char **argv)
+{
+  srand(time(NULL));
+
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>());
+  pcl::PointCloud<pcl::PointXYZ>::Ptr v_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+  v_cloud->width = 1000;
+  v_cloud ->height = 1;
+  v_cloud->resize(1000*1);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr r_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+  r_cloud->width = 1000;
+  r_cloud ->height = 1;
+  r_cloud->resize(1000*1);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr k_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+  k_cloud->width = 1000;
+  k_cloud ->height = 1;
+  k_cloud->resize(1000*1);
+  pcl::io::loadPCDFile("/home/lijun/pcl/src/pcl_learning/src/demo.pcd", *cloud);
+
+  pcl::PointXYZ search_point;
+  search_point.x = 1024.0 *rand()/(RAND_MAX + 1.0);
+  search_point.y = 1024.0 *rand()/(RAND_MAX + 1.0);
+  search_point.z = 1024.0 *rand()/(RAND_MAX + 1.0);
+
+  //全局共享智能指针
+  boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer("3D viewer"));
+  viewer->setBackgroundColor(0,0,0);
+  boost::shared_ptr<pcl::visualization::PCLVisualizer> v_viewer (new pcl::visualization::PCLVisualizer("3D viewer"));
+  v_viewer->setBackgroundColor(0,0,0);
+  boost::shared_ptr<pcl::visualization::PCLVisualizer> r_viewer (new pcl::visualization::PCLVisualizer("3D viewer"));
+  r_viewer->setBackgroundColor(0,0,0);
+  boost::shared_ptr<pcl::visualization::PCLVisualizer> k_viewer (new pcl::visualization::PCLVisualizer("3D viewer"));
+  k_viewer->setBackgroundColor(0,0,0);
+
+  pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> color_cloud( cloud,0,255,0 );
+  viewer->addPointCloud(cloud , color_cloud , "raw cloud");
+  viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE , 2 , "raw cloud");
+
+  float resolution = 128.0; //单位体素大小
+  pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree(resolution);
+  octree.setInputCloud(cloud);
+  octree.addPointsFromInputCloud();
+
+  //voxel search
+  std::vector<int> v_pointidx;
+  if(octree.voxelSearch(search_point , v_pointidx) > 0)
+  {
+    for(int i=0 ; i<v_pointidx.size(); i++)
+    {
+      v_cloud->points[i].x = cloud->points[v_pointidx[i]].x;
+      v_cloud->points[i].y = cloud->points[v_pointidx[i]].y;
+      v_cloud->points[i].z = cloud->points[v_pointidx[i]].z;
+    }
+    pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> v_color_cloud(v_cloud , 255,0,0);
+    v_viewer->addPointCloud(v_cloud , v_color_cloud, "v cloud");
+    v_viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE , 1 , "v cloud");
+        for (int i = 0; i < v_pointidx.size(); ++i)
+            std::cout << "    " << cloud->points[v_pointidx[i]].x
+                      << " " << cloud->points[v_pointidx[i]].y
+                      << " " << cloud->points[v_pointidx[i]].z
+                      <<  std::endl;
+  }
+
+
+  //radius search
+  float radius = 256.0 *rand() / (RAND_MAX + 1.0);
+  std::vector<int> r_pointidx;
+  std::vector<float> r_distance;
+
+  if(octree.radiusSearch(search_point , radius , r_pointidx , r_distance) > 0)
+  {
+    for(int i=0 ; i<r_pointidx.size(); i++)
+    {
+      r_cloud->points[i].x = cloud->points[r_pointidx[i]].x;
+      r_cloud->points[i].y = cloud->points[r_pointidx[i]].y;
+      r_cloud->points[i].z = cloud->points[r_pointidx[i]].z;
+    }
+    pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> r_color_cloud(r_cloud , 0,0,255);
+    r_viewer->addPointCloud(r_cloud , r_color_cloud, "r cloud");
+    r_viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE , 1 , "r cloud");
+    for (int i = 0; i < r_pointidx.size(); ++i)
+            std::cout << "    " << cloud->points[r_pointidx[i]].x
+                      << " " << cloud->points[r_pointidx[i]].y
+                      << " " << cloud->points[r_pointidx[i]].z
+                      << " (squared distance: " << r_distance[i] << ")" << std::endl;
+  }
+
+  //k search
+  int k = 10;
+  std::vector<int> k_pointidx;
+  std::vector<float> k_distance;
+
+  if(octree.nearestKSearch(search_point , k , k_pointidx , k_distance))
+  {
+    for(int i=0 ; i<k_pointidx.size(); i++)
+    {
+      k_cloud->points[i].x = cloud->points[k_pointidx[i]].x;
+      k_cloud->points[i].y = cloud->points[k_pointidx[i]].y;
+      k_cloud->points[i].z = cloud->points[k_pointidx[i]].z;
+    }
+    pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> k_color_cloud(k_cloud , 255,255,255);
+    k_viewer->addPointCloud(k_cloud , k_color_cloud, "k cloud");
+    k_viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE , 1 , "k cloud");
+    for (int i = 0; i < k_pointidx.size(); ++i)
+            std::cout << "    " << cloud->points[k_pointidx[i]].x
+                      << " " << cloud->points[k_pointidx[i]].y
+                      << " " << cloud->points[k_pointidx[i]].z
+                      << " (squared distance: " << k_distance[i] << ")" << std::endl;
+  }
+
+  viewer->addCoordinateSystem(0.5);
+  v_viewer->addCoordinateSystem(0.5);
+  r_viewer->addCoordinateSystem(0.5);
+  k_viewer->addCoordinateSystem(0.5);
+  while(!viewer->wasStopped())
+  {
+    viewer->spinOnce();
+    r_viewer->spinOnce();
+    k_viewer->spinOnce();
+    v_viewer->spinOnce();
+  }
+  return 0;
+}
 ```
 ### 结果与kdtree搜索算法的结果对比分析
